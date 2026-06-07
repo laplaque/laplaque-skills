@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "laplaque-skills",
+  "description": "Claude Code skills for PR review and draw.io diagram generation",
+  "version": "0.1.0",
+  "owner": {
+    "name": "laplaque"
+  },
+  "plugins": [
+    {
+      "name": "pr-review",
+      "description": "GitHub/GitLab PR review with inline comments, severity-based verdicts, and language-specific checks",
+      "source": "./",
+      "strict": false,
+      "version": "0.1.0",
+      "author": {
+        "name": "laplaque"
+      },
+      "keywords": ["code-review", "github", "gitlab", "pull-request", "merge-request"],
+      "category": "development",
+      "skills": [
+        "./skills/pr-review"
+      ]
+    },
+    {
+      "name": "drawio",
+      "description": "Generate, read, update, and export draw.io diagrams from natural language via local Docker",
+      "source": "./",
+      "strict": false,
+      "version": "0.1.0",
+      "author": {
+        "name": "laplaque"
+      },
+      "keywords": ["diagrams", "drawio", "architecture", "sequence", "export"],
+      "category": "visualization",
+      "skills": [
+        "./skills/drawio"
+      ]
+    }
+  ]
+}

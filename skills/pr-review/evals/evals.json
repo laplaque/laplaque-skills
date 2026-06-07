@@ -1,0 +1,238 @@
+{
+  "skill_name": "pr-review",
+  "description": "Evaluation suite for the pr-review skill. Tests are language-agnostic and project-agnostic unless a specific scenario requires a concrete PR.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "cli-verification",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill checks CLI auth before doing anything else.",
+      "expectations": [
+        "Step 0 runs before any diff fetching: gh auth status (GitHub) or glab auth status (GitLab)",
+        "If auth fails, the skill stops and reports what is missing with setup instructions from cli-setup.md",
+        "If auth succeeds, the skill proceeds to fetch the PR/MR metadata",
+        "The skill detects the platform (GitHub vs GitLab) from the URL automatically"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "adaptive-mode-selection",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill selects quick or deep mode based on diff size.",
+      "expectations": [
+        "The skill fetches the diff and counts changed lines before selecting a mode",
+        "PRs with fewer than 500 changed lines trigger quick mode (single-pass review)",
+        "PRs with 500+ changed lines trigger deep mode (parallel agent analysis)",
+        "The review summary states which mode was used and the total changed lines count",
+        "If the user explicitly requests 'quick' or 'deep', that overrides the automatic selection"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "language-detection-go",
+      "prompt": "Review this PR: {GO_PR_URL}",
+      "description": "Verifies Go-specific review checks are applied.",
+      "expectations": [
+        "The skill detects Go as the primary language from file extensions in the diff",
+        "Error handling is checked: identifies any discarded errors (_, err := ... with _ unused)",
+        "Concurrency safety is checked: flags shared state without mutex or channel protection",
+        "Package structure is checked: flags files in wrong directories per Go conventions",
+        "The review references Go idioms (e.g., error wrapping with %w, interface at consumer)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "language-detection-python",
+      "prompt": "Review this PR: {PYTHON_PR_URL}",
+      "description": "Verifies Python-specific review checks are applied, including Pydantic V2 enforcement.",
+      "expectations": [
+        "The skill detects Python as the primary language from file extensions in the diff",
+        "Any use of Pydantic V1 syntax (@validator, class Config:, .dict(), .json(), parse_raw()) is flagged as CRITICAL",
+        "The review suggests the V2 equivalent for each V1 usage found",
+        "Type annotations are checked: flags untyped function signatures",
+        "Pydantic models defined inline in business logic files are flagged (should be in *_models.py)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "language-detection-typescript",
+      "prompt": "Review this PR: {TS_PR_URL}",
+      "description": "Verifies TypeScript-specific review checks are applied.",
+      "expectations": [
+        "The skill detects TypeScript as the primary language from .ts/.tsx extensions",
+        "Any use of 'any' type is flagged",
+        "Missing runtime validation at trust boundaries (API handlers, external data) is flagged",
+        "Bare catch blocks (catch (e) {}) without error handling are flagged",
+        "The review checks for strict: true in tsconfig.json if config changes are in the diff"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "security-pii-detection",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill flags PII exposure in code.",
+      "expectations": [
+        "Hardcoded email addresses in source code are flagged as a security finding",
+        "Hardcoded IP addresses in source code are flagged",
+        "API keys, tokens, or credentials in source code are flagged as CRITICAL",
+        "PII in test fixtures is flagged if it appears to be real data (not obviously synthetic)",
+        "Log statements that may leak PII (user IDs, emails, names) are flagged",
+        "Each PII finding includes a remediation suggestion (e.g., use env vars, redact in logs)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "test-coverage-enforcement",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill enforces test coverage thresholds.",
+      "expectations": [
+        "The skill checks whether changed files have corresponding test files",
+        "New public functions or methods without tests are flagged",
+        "The review states the per-file coverage threshold (90%) and aggregate threshold (95%)",
+        "Auth, security, and data validation paths without 100% coverage are flagged as CRITICAL",
+        "If no test changes accompany code changes, the review flags this explicitly"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "spec-cross-check",
+      "prompt": "Review this PR: {ANY_PR_URL}. Cross-check against this spec: {SPEC_FILE_OR_CONTENT}",
+      "description": "Verifies the skill cross-checks implementation against a provided spec.",
+      "expectations": [
+        "The skill parses the provided spec and identifies discrete requirements",
+        "Each requirement is checked for: (a) implemented, (b) tested, (c) documented",
+        "Missing implementations are listed in the review as findings",
+        "Implemented but untested requirements are flagged",
+        "The review body includes a spec coverage table or checklist",
+        "Partially implemented requirements are identified with specifics on what is missing"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "ci-pipeline-diagnosis",
+      "prompt": "Review this PR and diagnose why CI is failing: {ANY_PR_URL}",
+      "description": "Verifies the skill can fetch and analyze CI/CD pipeline failures.",
+      "expectations": [
+        "The skill runs gh pr checks (GitHub) or glab ci status (GitLab) to get pipeline status",
+        "For failed jobs, the skill fetches logs via gh api or glab ci trace",
+        "The diagnosis identifies the root cause (not just the error message but the underlying reason)",
+        "The diagnosis distinguishes between code-caused failures and infra/flaky failures",
+        "CI findings are posted as a separate PR comment, not mixed into the code review",
+        "The diagnosis includes a suggested fix or next step for each failure"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "review-severity-taxonomy",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill applies the correct severity taxonomy to all findings.",
+      "expectations": [
+        "Every finding is tagged with exactly one severity: CRITICAL, HIGH, MEDIUM, or LOW",
+        "CRITICAL is used for: security vulnerabilities, data loss risks, correctness bugs that affect all users",
+        "HIGH is used for: significant bugs, performance issues, missing error handling",
+        "MEDIUM is used for: code quality, maintainability, missing documentation",
+        "LOW is used for: style, naming, minor improvements",
+        "The review summary groups findings by severity count",
+        "The review event (APPROVE / COMMENT / REQUEST_CHANGES) is determined by the highest severity found"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "review-posting-github",
+      "prompt": "Review this PR: {GITHUB_PR_URL}",
+      "description": "Verifies the skill posts a well-formed review to GitHub.",
+      "expectations": [
+        "The review is posted via gh api POST /repos/{owner}/{repo}/pulls/{number}/reviews",
+        "The payload includes commit_id (HEAD of the PR branch)",
+        "The payload includes event (APPROVE, COMMENT, or REQUEST_CHANGES)",
+        "The payload includes body (structured summary with verdict)",
+        "Inline comments include path, position or line, and body with severity + suggestion",
+        "The skill confirms the review was posted successfully (non-error HTTP response)"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "review-posting-gitlab",
+      "prompt": "Review this MR: {GITLAB_MR_URL}",
+      "description": "Verifies the skill posts review findings to GitLab correctly.",
+      "expectations": [
+        "The skill uses glab or GitLab API to post review discussions",
+        "Each finding is posted as a discussion thread on the relevant diff line",
+        "The summary is posted as a general MR note",
+        "The skill handles GitLab's diff-based line referencing (old_line / new_line)",
+        "If glab mr approve is warranted, it is only called when there are zero CRITICAL or HIGH findings"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "guideline-priority-order",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill applies review guidelines in the correct priority order: user guidelines > project guidelines > repo config.",
+      "expectations": [
+        "If the user provides explicit review instructions, those take highest priority",
+        "Project-level guidelines (from user preferences or CLAUDE.md) are applied next",
+        "Repo-level config files (.eslintrc, .golangci.yml, pyproject.toml, etc.) are checked and respected",
+        "Before scoring a gate as failed, the skill checks loaded local rules for confirmations, refinements, elaborations, or exemptions that qualify that gate",
+        "When guidelines conflict, the higher-priority source wins",
+        "The review summary states which guideline sources were applied"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "multi-language-pr",
+      "prompt": "Review this PR: {MULTI_LANG_PR_URL}",
+      "description": "Verifies the skill handles PRs with changes across multiple languages.",
+      "expectations": [
+        "The skill detects all languages present in the diff",
+        "Language-specific checks are applied per-file (not globally)",
+        "The review summary lists which languages were detected",
+        "Findings reference the correct language-specific standards for each file"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "clean-pr-approval",
+      "prompt": "Review this PR: {CLEAN_PR_URL}",
+      "description": "Verifies the skill can approve a PR when no significant issues are found.",
+      "expectations": [
+        "If no CRITICAL or HIGH findings exist, the review event is APPROVE or COMMENT (not REQUEST_CHANGES)",
+        "The review still includes any MEDIUM or LOW suggestions found",
+        "The summary includes a positive verdict stating the PR is ready to merge",
+        "The skill does not fabricate issues to avoid approving"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "hack-detection",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill detects and disqualifies hacks, workarounds, and shortcuts in the code.",
+      "expectations": [
+        "TODO, FIXME, HACK, WORKAROUND, TEMP, XXX, and KLUDGE comments are flagged as findings (HIGH minimum)",
+        "Hardcoded magic numbers, URLs, timeouts, or retry counts that should be configurable are flagged",
+        "Commented-out code is flagged as MEDIUM (CRITICAL if it disables a security check)",
+        "Copy-pasted blocks with minor variations are flagged as missing abstractions",
+        "Error-swallowing try/catch or recover blocks are flagged as HIGH",
+        "Environment-based auth/validation bypasses (e.g., skip auth in dev) are flagged as CRITICAL",
+        "Sleep/delay used as synchronization instead of proper signals is flagged as HIGH",
+        "Each hack finding quotes the offending code, explains what proper implementation looks like, and states it must be resolved before merge",
+        "Hacks in security, auth, or data validation paths are escalated to CRITICAL regardless of the hack type"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "linting-suppression-detection",
+      "prompt": "Review this PR: {ANY_PR_URL}",
+      "description": "Verifies the skill detects and flags linting/type-checking suppression comments that bypass proper fixes.",
+      "expectations": [
+        "Bare # noqa, // nolint, // @ts-ignore, @SuppressWarnings without justification are flagged as HIGH",
+        "Suppression with justification but a fixable underlying issue is flagged as MEDIUM with the proper fix",
+        "Blanket file-level or block-level suppressions (e.g., /* eslint-disable */ at top of file) are flagged as HIGH",
+        "Genuinely unavoidable suppressions with narrow scope and justification are accepted",
+        "Python: the proper fix suggests adding type stubs (*.pyi) or using cast() instead of # type: ignore",
+        "TypeScript: the proper fix suggests type assertions or unknown + type guard instead of @ts-ignore",
+        "Go: the proper fix suggests targeted //nolint:specificlinter with justification instead of //nolint",
+        "Each finding quotes the suppression comment and the code it applies to"
+      ]
+    }
+  ]
+}

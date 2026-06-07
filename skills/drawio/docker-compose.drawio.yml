@@ -1,0 +1,22 @@
+# draw.io export server
+# Provides PNG/SVG/PDF export via HTTP POST on localhost:60081
+#
+# Usage:
+#   docker compose -f docker-compose.drawio.yml up -d
+#   docker compose -f docker-compose.drawio.yml down
+
+services:
+
+  export:
+    image: jgraph/export-server:latest
+    platform: linux/amd64
+    container_name: drawio-export
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:60081:8000"   # localhost only — not exposed to LAN
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'echo > /dev/tcp/localhost/8000'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
