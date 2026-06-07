@@ -1,20 +1,35 @@
 # laplaque-skills
 
-Claude Code skills for PR review and draw.io diagram generation.
+AI coding assistant skills for PR review and draw.io diagram generation. Works with Claude Code, Codex, and any tool that reads the skill format.
 
 ## Install
+
+### Claude Code
 
 ```bash
 claude plugin add laplaque-skills
 ```
 
-Or clone and symlink manually:
+Or symlink manually:
 
 ```bash
 git clone https://github.com/laplaque/laplaque-skills.git
 cd laplaque-skills
 ln -sfn "$(pwd)/skills/pr-review" ~/.claude/skills/pr-review
 ln -sfn "$(pwd)/skills/drawio" ~/.claude/skills/drawio
+```
+
+### Codex
+
+```bash
+codex plugin add laplaque-skills@personal
+```
+
+Or point your personal marketplace at this repo:
+
+```bash
+mkdir -p ~/.agents/plugins/plugins
+ln -sfn <path-to-laplaque-skills> ~/.agents/plugins/plugins/laplaque-skills
 ```
 
 ## Skills
