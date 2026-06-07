@@ -1,0 +1,32 @@
+{
+  "name": "laplaque-skills",
+  "version": "0.1.0",
+  "description": "Claude Code skills for PR review and draw.io diagram generation",
+  "author": {
+    "name": "laplaque"
+  },
+  "keywords": [
+    "code-review",
+    "diagrams",
+    "drawio",
+    "pull-request",
+    "merge-request"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Laplaque Skills",
+    "shortDescription": "PR review and draw.io diagram generation.",
+    "longDescription": "Claude Code skills for GitHub/GitLab PR review with inline comments and draw.io diagram generation via local Docker.",
+    "developerName": "laplaque",
+    "category": "Productivity",
+    "capabilities": [
+      "Review",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Review this PR.",
+      "Create a draw.io diagram."
+    ],
+    "brandColor": "#2563EB"
+  }
+}
