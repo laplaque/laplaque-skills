@@ -1,7 +1,7 @@
 {
   "name": "laplaque-skills",
   "version": "0.1.0",
-  "description": "Claude Code skills for PR review and draw.io diagram generation",
+  "description": "AI coding assistant skills for PR review and draw.io diagram generation",
   "author": {
     "name": "laplaque"
   },
@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "Laplaque Skills",
     "shortDescription": "PR review and draw.io diagram generation.",
-    "longDescription": "Claude Code skills for GitHub/GitLab PR review with inline comments and draw.io diagram generation via local Docker.",
+    "longDescription": "AI coding assistant skills for GitHub/GitLab PR review with inline comments and draw.io diagram generation via local Docker.",
     "developerName": "laplaque",
     "category": "Productivity",
     "capabilities": [

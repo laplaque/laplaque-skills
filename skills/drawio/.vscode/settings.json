@@ -1,7 +1,7 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/claude-skills/skills/drawio/.venv/bin/python",
+  "python.defaultInterpreterPath": "${workspaceFolder}/laplaque-skills/skills/drawio/.venv/bin/python",
   "python.analysis.extraPaths": [
-    "${workspaceFolder}/claude-skills/skills/drawio/.venv/lib/python3.13/site-packages"
+    "${workspaceFolder}/laplaque-skills/skills/drawio/.venv/lib/python3.13/site-packages"
   ],
   "python.analysis.typeCheckingMode": "basic"
 }
