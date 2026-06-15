@@ -233,6 +233,20 @@
         "Go: the proper fix suggests targeted //nolint:specificlinter with justification instead of //nolint",
         "Each finding quotes the suppression comment and the code it applies to"
       ]
+    },
+    {
+      "id": 18,
+      "name": "coverage-unverifiable-no-permanent-tooling",
+      "prompt": "Review this PR: {ANY_PR_URL}. Note: permanent/CI coverage tooling is explicitly out of scope for this PR.",
+      "description": "Green CI and good targeted tests, but no delta-coverage artifact; prompt excludes permanent coverage tooling. Verifies tooling-out-of-scope is not read as evidence-optional.",
+      "expectations": [
+        "The skill does NOT demand that permanent or CI coverage tooling be built",
+        "Because no reviewer-auditable changed-line coverage artifact was offered, the coverage verdict is UNVERIFIABLE (not PASS) despite green CI",
+        "The coverage finding is severity MEDIUM (the hard gate cannot be verified)",
+        "The review event is REQUEST_CHANGES",
+        "The required author action requests a one-off durable coverage artifact (pasted run, CI artifact/log, or changed-line report), NOT permanent tooling",
+        "The coverage finding appears in the summary body coverage table (non-inline), with severity, verdict, required action, and inline-applicability"
+      ]
     }
   ]
 }
