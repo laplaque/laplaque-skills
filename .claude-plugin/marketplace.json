@@ -12,7 +12,7 @@
       "description": "GitHub/GitLab PR review with inline comments, severity-based verdicts, and language-specific checks",
       "source": "./",
       "strict": false,
-      "version": "0.1.0",
+      "version": "0.2.0",
       "author": {
         "name": "laplaque"
       },

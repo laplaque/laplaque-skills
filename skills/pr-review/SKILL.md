@@ -315,6 +315,20 @@ Test coverage is a hard gate, not a suggestion. The thresholds apply to **code c
 - **90% minimum per changed file**
 - **95% minimum across all changes**
 
+**Coverage verdict severity (explicit).** Every review resolves the coverage gate to exactly one verdict, and each verdict carries a fixed severity that feeds Step 8 like any other finding. The verdict is not optional context — it is a finding.
+
+- **`PASS`** — the gate is verified met: the author supplied reviewer-auditable changed-line evidence showing both thresholds are met. **No coverage finding.**
+- **`FAIL`** — the gate is verified **not** met (evidence shows changed-line coverage below threshold). **HIGH** by default; **CRITICAL** if any changed line is on an auth, security, or data-validation path (apply the path-classification rule below).
+- **`UNVERIFIABLE`** — the gate **cannot be verified** because the author offered no reviewer-auditable changed-line coverage evidence. A hard gate that cannot be verified is itself a blocking finding, not neutral context. **MEDIUM minimum**; **CRITICAL** if any changed line is on an auth, security, or data-validation path.
+
+`UNVERIFIABLE` is never a silent pass. Absence of evidence is the finding (see Step 6.5 — the reviewer does not run coverage to fill the gap).
+
+**Coverage tooling vs coverage evidence.** These are different things and must not be conflated.
+
+- If permanent or CI coverage tooling is out of scope for this PR — per the originating prompt, project guidelines, or a local-rule qualifier (Step 3.7 #5) — the reviewer **must not** demand that infrastructure be built. Do not make "stand up a coverage pipeline" the required action.
+- The hard gate is **still in force.** The author satisfies it with any **durable, reviewer-auditable changed-line coverage artifact**: a one-off coverage run pasted or attached to the PR, a CI artifact/log, or a changed-line coverage report linked from the PR.
+- **"Coverage tooling out of scope" ≠ "coverage evidence optional."** With tooling out of scope **and** no one-off artifact offered, the verdict is `UNVERIFIABLE` (≥ MEDIUM) and the required author action is *"provide a one-off durable coverage artifact for the changed lines"* — **not** *"build permanent tooling."* A coverage-gate **exception** (a deliberate waiver of the gate itself, per Step 8) is the only thing that makes evidence optional, and it requires an explicit grant — being out of tooling scope is not such a grant.
+
 **Path-classification before severity.** For every "missing test" finding, identify the *consumer* of the changed code — where the value is read, where the function is called, where the config slice is consumed. If any consumer is on an auth, security, validation, or PII-handling path, severity is **HIGH** minimum, **CRITICAL** if the path is the only barrier to credential or PII exposure. Severity follows consequence-of-regression, not size-of-diff. Worked example: a one-line addition to an `AuthDomains` config slice with no `defaults()` test assertion is HIGH — a future refactor can drop the entry, rerouting OAuth payloads into systems that should bypass them. Trace the consumer before assigning severity; do not classify a coverage gap by how the diff "looks."
 
 **Config-presence is necessary, not sufficient, for new entries on a security path.** When a PR adds an entry to a security-classifier slice/map (auth domains, allowlists/denylists, security middleware tables, role mappings, PII bypass lists), require BOTH (1) a config-presence assertion that the entry is in the configured slice AND (2) a functional assertion that the consumer behaves correctly for that entry (e.g., for a new `AuthDomains` entry, `isAuthRequest("oauth2.googleapis.com", "/...") == true`; for a new allowlist entry, the gate function returns the expected verdict on that input). Config presence alone leaves the consumer's logic unguarded — a future refactor of the consumer (changed lookup pattern, added path-prefix requirement, swapped the underlying table) silently breaks behavior while the config-presence test stays green. Either part missing is **HIGH**.
@@ -399,6 +413,12 @@ Without the artifact, the finding's severity stays at its initial classification
 
 This gate applies on every round, not just re-reviews. A first-round PR body that says "deferred to v2" without an issue reference triggers the same gate. The gate is mechanical — verdict generation cannot route around it without producing a visibly contradictory ledger entry (Step 3.6 #8).
 
+**Coverage gate → event (explicit).** The coverage verdict (Step 4) maps to the event as follows. This layers onto the severity table below — it does not contradict it, since `UNVERIFIABLE` = MEDIUM and `FAIL` = HIGH/CRITICAL already route through "MEDIUM or above → REQUEST_CHANGES."
+
+- Coverage `FAIL` or `UNVERIFIABLE` → `REQUEST_CHANGES`, **unless** the user or project has **explicitly granted a coverage-gate exception** (a deliberate waiver, recorded as a local-rule qualifier per Step 3.7 #5 or satisfying the downgrade gate above). An exception waives the gate; "coverage tooling out of scope" does **not** waive it (the author still owes a one-off artifact — see Step 4).
+- `APPROVE` only when **all** hold: coverage is `PASS`, the pipeline is green (Step 6), and no CRITICAL or HIGH finding exists.
+- `COMMENT` only for non-blocking (LOW) findings, and only when all hard gates pass or carry an explicit exception.
+
 | Highest finding | Event | Meaning |
 |---|---|---|
 | MEDIUM or above | `REQUEST_CHANGES` | PR is not ready — author must address issues before merge |
@@ -433,8 +453,12 @@ Pipeline status does not influence this table. A green pipeline does not reduce 
 ### Pipeline status
 [PASS / BLOCKED]
 
-### Test coverage verdict
-[PASS / FAIL / UNVERIFIABLE]
+### Test coverage
+State the coverage verdict and its severity here, in the summary body — coverage findings are PR-level, not tied to a single diff line, so they are **not** posted as inline comments (only a coverage gap anchored to one specific changed line gets an inline comment). List, per coverage finding: verdict, severity, the required author action, and whether it is inline-applicable.
+
+| Verdict | Severity | Required author action | Inline-applicable |
+|---|---|---|---|
+| PASS / FAIL / UNVERIFIABLE | CRITICAL / HIGH / MEDIUM / — | e.g. "attach a one-off changed-line coverage artifact (no permanent tooling required)" | No (summary) / Yes (`file:line`) |
 
 ### Path to Approval (Action Plan)
 1. [Blocker 1] -> Resolve by [Fix]
