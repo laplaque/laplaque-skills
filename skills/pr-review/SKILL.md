@@ -308,11 +308,13 @@ implementation. Scan specifically for duplicated: helper/utility logic, parsing,
 config loading, validation, state transitions, telemetry/event recording, error
 handling, and lifecycle semantics.
 
-- **Search before accepting.** Look for existing functions, types, modules, or
-  canonical paths that already implement the same behavior before treating new
-  helper logic as net-new. (This search names the canonical path the PR should
-  reuse; the Step 6.5 reviewer-scope hard stop still governs author coverage/test
-  evidence.)
+- **Search before accepting.** Run a *targeted* search of the repository — grep
+  for the canonical symbol, helper name, type, or module path the new code
+  resembles — to find an existing implementation of the same behavior before
+  treating new helper logic as net-new. This bounded discovery search is the
+  sanctioned mechanism for this dimension and is **explicitly exempt** from the
+  Step 6.5 reviewer-scope hard stop (which governs *author-owed gate evidence*,
+  not duplication discovery). Keep it targeted — not an open-ended codebase audit.
 - **Flag duplicated functionality** when the PR should instead reuse, extend, or
   consolidate through an existing abstraction.
 - **Comment inline on the duplicated new code**, referencing the existing
@@ -429,6 +431,8 @@ The reviewer's job is to evaluate evidence the author offered, not to substitute
 - Read a test file to count its cases on the author's behalf
 - Open source files to enumerate branches the author should have tested
 - Manually run any command listed in a gate to see its output
+
+**Exception — consolidation discovery (Step 4) is permitted.** This hard stop governs *author-owed gate evidence* (coverage numbers, test counts, gate-clause verification). It does **not** forbid the targeted codebase search the Step 4 *Existing functionality / consolidation* dimension requires: locating an existing function, type, or module that the diff may duplicate or bypass is discovery the author will not volunteer — not a substitute for evidence the author owes. Keep that search targeted (grep for the canonical symbol or path); it is not a license for an open-ended audit.
 
 If the author didn't offer evidence for a clause, the finding is **"evidence not offered for clause X"** — not "let me check." Substituting reviewer-side investigation for author-side evidence:
 
