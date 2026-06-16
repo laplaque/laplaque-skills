@@ -158,7 +158,7 @@ A prior MR is **in-chain** if its target branch is in this set. Feature branches
    | `9abcde0` | UNCOVERED (bypass) | — | — | direct push detected |
    | `5678fed` | UNCOVERED (unapproved) | #155 | (none) | prior MR merged with 0 approvals |
 
-6. **Run Step 4 ONLY on uncovered commits.** Covered commits (including approved cherry-picks) skip code-level analysis entirely — correctness, architecture, test coverage, comment rot, PII, hacks-and-workarounds were all scored in the prior MR and their findings live in that MR's record. Do not re-litigate.
+6. **Run Step 4 ONLY on uncovered commits.** Covered commits (including approved cherry-picks) skip code-level analysis entirely — correctness, architecture, existing-functionality/consolidation, test coverage, comment rot, PII, hacks-and-workarounds were all scored in the prior MR and their findings live in that MR's record. Do not re-litigate.
 
 7. **Integration risk pass (only when ≥ 2 covered feature branches touch overlapping files).** Compute the file set per prior MR (`gh pr view {n} --json files` / `glab api projects/{id}/merge_requests/{iid}/changes`) and detect overlaps across the covered set. If two independently-reviewed feature branches touched the same file but were never integration-tested together, flag as **MEDIUM** with a "no joint integration test" finding. Overlap-free → no finding.
 
@@ -228,7 +228,7 @@ This step is required for any re-review or whenever new commits may exist.
   2. Head pipeline ID
   3. Head pipeline status
   4. Checked at (UTC timestamp)
-7. **Re-walk Step 3.7 (Gate enumeration) in full on every re-review round.** Never assume previously-passing gates still pass at a new head SHA; never confine re-review to only the previously-failing gates. If the author addressed feedback via PR-body edit (no new commits), body-dependent gates must be re-scored against the updated body. A re-review takes comparable time to the original audit — fast turnaround is a signal of rubber-stamping, not of efficiency.
+7. **Re-walk Step 3.7 (Gate enumeration) in full on every re-review round.** Never assume previously-passing gates still pass at a new head SHA; never confine re-review to only the previously-failing gates. If the author addressed feedback via PR-body edit (no new commits), body-dependent gates must be re-scored against the updated body. A re-review takes comparable time to the original audit — fast turnaround is a signal of rubber-stamping, not of efficiency. Likewise re-evaluate Step 4's **Existing functionality / consolidation** dimension against the new head — revision commits frequently add helpers that duplicate existing behavior.
 8. **Re-review finding ledger (forced output).** In the re-review body, maintain a row-per-prior-finding table. Every finding from any prior round carries forward with its original severity and is re-scored against the current head. Do not omit a row because "it was clearly fixed" — the table is the audit trail.
 
    | Finding | R-N severity | Artifact offered                   | Artifact valid? | R-current severity |
@@ -297,12 +297,63 @@ For every file in the diff, evaluate against these dimensions. Weight them based
 - Interface boundaries — are abstractions clean?
 - Dependency direction — do high-level modules depend on low-level ones?
 
+**Existing functionality / consolidation (MANDATORY — evaluate on every full review and re-review):**
+
+Before accepting any new helper, utility, or logic in the diff, check whether it
+duplicates behavior that already exists elsewhere in the codebase. This is
+broader than literal copy-paste: it includes independently reimplementing
+equivalent logic under different names, with small variations, with only partial
+behavior, or as an alternate code path that **bypasses** the established
+implementation. Scan specifically for duplicated: helper/utility logic, parsing,
+config loading, validation, state transitions, telemetry/event recording, error
+handling, and lifecycle semantics.
+
+- **Search before accepting.** Look for existing functions, types, modules, or
+  canonical paths that already implement the same behavior before treating new
+  helper logic as net-new. (This search names the canonical path the PR should
+  reuse; the Step 6.5 reviewer-scope hard stop still governs author coverage/test
+  evidence.)
+- **Flag duplicated functionality** when the PR should instead reuse, extend, or
+  consolidate through an existing abstraction.
+- **Comment inline on the duplicated new code**, referencing the existing
+  function/module (`file:line` or symbol name) where possible.
+- **Do not** require abstraction for incidental one-line duplication or harmless
+  local clarity. The issue is duplicated *behavior* that can diverge, accumulate
+  maintenance drift, or bypass an established path — not every repeated expression.
+
+**Scope handling (do not force an out-of-scope refactor).** If consolidating the
+duplication would expand the PR into code outside its intended scope or outside
+the files it should reasonably touch, do **not** require that larger refactor in
+the current PR by default. Instead:
+- Require the **author** to create a tracking issue for the consolidation
+  cleanup. The reviewer names the needed follow-up and explains why it is out of
+  scope for the current PR; the reviewer does **not** file the issue.
+- If the PR leaves the duplicated or bypassing code in place pending follow-up,
+  require a durable reference to the author-created issue where appropriate — an
+  in-code `TODO` or docs note adjacent to the duplicated/bypassing code.
+
+**Severity:**
+- **MEDIUM** (default) — duplicated functionality creates maintainability drift
+  but can safely be deferred with a tracking issue.
+- **HIGH** — the duplication bypasses a canonical security, auth, privacy/PII,
+  config-loading, validation, persistence, telemetry trust-boundary,
+  lifecycle/state, or error-handling path.
+- **CRITICAL** — the duplication bypasses the only barrier preventing credential
+  exposure, PII exposure, auth bypass, data loss, or unsafe persistence behavior.
+
+Do not downgrade severity on an author reply alone. If the reviewer accepts
+deferral because fixing the consolidation would expand scope, the downgrade
+requires BOTH durable artifacts per the Step 8 severity downgrade gate: (1) an
+author-created tracking issue, AND (2) an in-code or in-doc anchor where future
+maintainers will see it. Without both, the finding keeps its original severity
+and feeds the normal verdict table.
+
 **Hacks and workarounds (disqualifying):**
 Any code that bypasses proper implementation is a finding. Hacks are not acceptable in production code and must be replaced with proper solutions before merge. Scan for:
 - `TODO`, `FIXME`, `HACK`, `WORKAROUND`, `TEMP`, `XXX`, `KLUDGE` comments — each one is an admission that the code is not ready. Flag as **HIGH** minimum. If the hack is in a security, auth, or data path, flag as **CRITICAL**.
 - Hardcoded values that should be configurable — magic numbers, hardcoded URLs, embedded timeouts, fixed retry counts, hardcoded credentials or endpoints. Flag as **HIGH**.
 - Commented-out code — dead code left behind signals incomplete cleanup. Flag as **MEDIUM** unless it disables a security check, in which case **CRITICAL**.
-- Copy-pasted blocks with minor variations — indicates a missing abstraction. Flag as **MEDIUM**.
+- Copy-pasted blocks with minor variations — indicates a missing abstraction. Flag as **MEDIUM**. *(See the Existing functionality / consolidation dimension above for the broader duplicated-behavior check — non-literal reimplementation and bypass paths.)*
 - Try/catch or recover blocks that swallow errors to force execution past a known failure — this masks bugs. Flag as **HIGH**.
 - Feature flags or environment checks that bypass validation, auth, or security in non-production environments (e.g., `if env != "prod" { skipAuth() }`) — these inevitably leak to production. Flag as **CRITICAL**.
 - Monkey-patching, runtime type coercion, reflection hacks, or unsafe casts used to work around type system constraints. Flag as **HIGH**.
