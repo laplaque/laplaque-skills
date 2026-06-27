@@ -170,7 +170,7 @@ A prior MR is **in-chain** if its target branch is in this set. Feature branches
 **Adaptation of downstream steps for chain-audit mode**
 
 - **Step 3 (Choose review mode):** does not apply to covered commits. For uncovered commits, count lines across uncovered-only and pick mode accordingly.
-- **Step 3.5 (Pre-findings gate):** Q1 reframes from *"What specific problem does this MR solve?"* to *"Is this promotion properly sequenced (correct source/target direction, no skipped environments, source branch HEAD reachable from target's expected upstream)?"*. Q2–Q4 apply unchanged.
+- **Step 3.5 (Pre-findings gate):** Q1 reframes from *"What specific problem does this MR solve?"* to *"Is this promotion properly sequenced (correct source/target direction, no skipped environments, source branch HEAD reachable from target's expected upstream)?"*. Q2–Q5 apply unchanged.
 - **Step 3.7 (Gate enumeration):** still applies; scope to the promotion MR's own template, which may carry different requirements (e.g., *"all commits passed test environment"* rather than *"unit tests cover 90% on this diff"*). Feature-MR coverage gates do not re-apply to covered commits — those were scored in the prior MR.
 - **Step 4 (Analyze the code):** runs ONLY on uncovered commits. Covered commits are out of scope for code findings.
 - **Step 8 (verdict):** unchanged. Highest finding severity — from process violations (HIGH/CRITICAL on bypass/unapproved), integration risk (MEDIUM), or uncovered-commit code findings — drives the verdict per the existing table.
@@ -199,12 +199,13 @@ The user can override the mode: "do a deep review" forces deep mode on small PRs
 
 ### Step 3.5: Pre-findings gate (MANDATORY before analysis)
 
-Answer these four questions before producing ANY finding. If you cannot answer all four, you haven't analyzed deeply enough — go back.
+Answer these five questions before producing ANY finding. If you cannot answer all five, you haven't analyzed deeply enough — go back.
 
 1. **What specific problem does this MR solve?** If unclear from MR body → immediate blocking finding.
 2. **Is the pipeline green at the exact MR head SHA?** Verify SHA match between `glab mr view` and `glab ci status`. Different SHA = you checked the wrong pipeline.
 3. **Has the author self-verified?** Template boxes checked, description filled, test plan completed. Every unchecked box is a separate finding.
 4. **Does the approach make functional sense for the stated problem?** Would this change actually solve the problem in the environments where it runs (CI, prod)? If the mechanism can't trigger where it matters, that's a finding.
+5. **If the MR states a sweep objective of the form "do X across Y"** (e.g. "replace bare Alpine in all jobs", "pin every image", "add timeouts to all steps"), grep the whole file — not just the diff — for residual Y and report any survivor as an incompleteness finding, or require an explicit, documented carve-out for each instance left in place. A sweep that the MR claims is complete but isn't is a finding, not a nit.
 
 ### Step 3.6: Re-review freshness gate (MANDATORY)
 
@@ -268,9 +269,15 @@ The project's quality gates are the binding merge contract. Treat them as text t
 
 Include the per-clause scoring as a "Quality gates audit" table in the posted review body so the author sees which clauses you scored and how.
 
+**Evidence-bearing scores (no bare adjectives).** A score cell may not read only `PASS` / `clean` / `ok` / "checked". Every per-clause result must cite the concrete action and its outcome — e.g. "grepped `|| true`: 2 hits (L132, L286)", "`grep -n alpine` on full file: 4 residual jobs", "read `.git_authenticated`: askpass mode 0755". A results cell containing only an adjective with no cited action+result is itself a process violation and is treated as NOT-DONE for that clause.
+
 ### Step 4: Analyze the code
 
 For every file in the diff, evaluate against these dimensions. Weight them based on what the review guidelines prioritize.
+
+**Evidence-bearing claims (no bare adjectives).** You may not state that a dimension passed, that a file is "clean", or that "all dimensions were checked" with a bare adjective. Every such claim must cite the concrete action and its result — e.g. "grepped `|| true`: 2 hits (L132, L286)", "`grep -n alpine` on full file: 4 residual jobs", "read `.git_authenticated`: askpass mode 0755". A claim of "clean" / "ok" / "pass" with no cited action+result is itself a process violation and must be treated as NOT-DONE.
+
+**Follow the reference graph for CI/IaC/config changes.** For changes to CI pipelines, IaC, or config, fetch each changed file at the head SHA and follow its reference graph — `!reference`, `extends`, `include`, and sourced/`script:` paths — before scoring. The diff is not the blast radius: a job that looks untouched in the diff can still be broken, or left on an old base, by an edit to a template it extends or a script it sources.
 
 **Correctness:**
 - Logic errors, off-by-one, nil/null dereference risks
@@ -434,6 +441,8 @@ The reviewer's job is to evaluate evidence the author offered, not to substitute
 
 **Exception — consolidation discovery (Step 4) is permitted.** This hard stop governs *author-owed gate evidence* (coverage numbers, test counts, gate-clause verification). It does **not** forbid the targeted codebase search the Step 4 *Existing functionality / consolidation* dimension requires: locating an existing function, type, or module that the diff may duplicate or bypass is discovery the author will not volunteer — not a substitute for evidence the author owes. Keep that search targeted (grep for the canonical symbol or path); it is not a license for an open-ended audit.
 
+**Boundary — author-owed evidence vs. reading code for findings.** The hard stop forbids only reviewer investigation that *substitutes for author-owed gate evidence* — coverage numbers, test counts, per-line CI results, manual gate-clause verification. It does NOT forbid — and Step 4 REQUIRES — reading the full changed files, their referenced templates/scripts, and the surrounding code to find correctness, security, silent-failure, and consolidation findings. Reading code to surface a finding ≠ running the author's gates on the author's behalf.
+
 If the author didn't offer evidence for a clause, the finding is **"evidence not offered for clause X"** — not "let me check." Substituting reviewer-side investigation for author-side evidence:
 
 - Lets the author skip the documentation half of the gate
@@ -450,6 +459,17 @@ If you find yourself reasoning "but it's quick to check," that's exactly the fai
 ### Step 7: Identify exact line numbers
 
 Determine the **exact new-side line number** in the diff using `gh api` or `glab api` hunk parsing. This is critical for accurate inline comments.
+
+### Step 7.5: Adversarial miss-hunting pass (MANDATORY — all reviews)
+
+Before forming the verdict, run one dedicated pass — or dispatch a subagent — whose only job is to attack your own first pass. This applies to **every review regardless of size**; it is distinct from, and not satisfied by, Deep mode's size-triggered concern-area fan-out (Step 3). Even a one-line Quick-mode review runs this pass.
+
+Two questions, both mandatory:
+
+1. **What did the first pass miss OUTSIDE the changed hunks?** Read the full changed files (not just the diff hunks) and walk their reference graph — `!reference`, `extends`, `include`, and sourced-script paths — then grep the whole file for anti-patterns the hunk view hides: `|| true`, `apk add`, `alpine`, `:latest`, `2>&1`, `chmod +x`, and token/secret echoes.
+2. **Which accepted downgrades or WONTFIXes were NOT proven per the Step 8 gate?** Re-walk every severity downgrade and deferral; any one lacking its required durable artifact (per the Step 8 severity downgrade gate) is unproven and reverts to its prior severity.
+
+Any item this pass surfaces is a finding and re-runs Step 8 — it can change the verdict. Record in the evidence block (Step 9) that the adversarial pass ran and exactly what it checked: the grep terms run and the reference graph followed. A missing or contentless adversarial-pass note is itself a process violation.
 
 ### Step 8: Determine review event
 
@@ -501,9 +521,42 @@ Pipeline status does not influence this table. A green pipeline does not reduce 
 - **GitLab tier caveat:** Request-changes-as-merge-block is a Premium/Ultimate feature. On Free tier, requesting changes is advisory only and does not block merge. Verify the project tier before relying on `/request_changes` as a hard gate.
 - **GitLab approve SHA pinning:** For APPROVE actions, require SHA pinning. Use approval with explicit SHA. If SHA mismatch occurs, refresh and rerun Step 3.6. Never post approval against an unpinned or stale head.
 
-**Summary body** includes:
+**Summary body — complete mandatory output.** The template below is the authoritative, ordered enumeration of *every* mandatory posted element. It is not a starting point to trim: each numbered element is required, and several are mandated by earlier steps (evidence block — Step 3.6 #6; promotion line + chain-of-custody table — Step 2.5; gate-defining-doc record + Quality gates audit table — Step 3.7; coverage verdict table — Step 4; adversarial-pass note — Step 7.5). Where an element is also defined in an earlier step, this checklist is where it gets *rendered into the posted artifact*.
+
+**Pre-post rule.** Render the full mandated set into the durable POSTED artifact (the review body) by default. Only the artifact's own format may authorize an omission — e.g. the promotion line carries `no` and the chain-of-custody table is absent for a non-promotion MR — **never** reviewer discretion. Keeping any mandated element "in chat" or "in a scratch" instead of in the posted artifact is a conformance violation. Evidence cells in elements 4 and 6 follow the evidence-bearing-claims rule (Step 4): cite action + result, never a bare adjective.
+
+Mandatory elements, in order:
+
+1. **Evidence block** — head SHA, head pipeline ID, head pipeline status, checked-at (UTC), and the adversarial-pass-ran note (Step 7.5: what it checked).
+2. **`Promotion merge:`** line — `yes (...)` or `no` (Step 2.5); for a promotion merge the chain-of-custody table (Step 2.5 #5) is included here too.
+3. **Gate-defining-doc record** — which document supplied the quality gates (Step 3.7 #1), or the noted fallback.
+4. **Quality gates audit table** — per-clause PASS / PARTIAL / FAIL / NEED-EVIDENCE (Step 3.7), each cell citing action + result.
+5. **Pipeline status** — PASS / BLOCKED (Step 6).
+6. **Test coverage verdict table** — verdict, severity, required author action, inline-applicable (Step 4).
+7. **Findings** — inline-anchored; the summary references them.
+8. **Path to Approval (Action Plan)** — the ordered blockers and their fixes.
+9. **Verdict** — APPROVE / REQUEST_CHANGES / COMMENT.
+
 ```markdown
 ## PR Review: {title}
+
+### Evidence block
+- Head SHA: {sha}
+- Head pipeline: {id} — status: {PASS / FAILED / ...}
+- Checked at: {UTC timestamp}
+- Adversarial miss-hunting pass (Step 7.5): ran — checked {grep terms run; reference graph followed}
+
+### Promotion merge
+{yes (source-protected: PASS, target-protected: PASS, pattern: dev->test) | no}
+<!-- promotion merges only: include the Step 2.5 chain-of-custody table here -->
+
+### Gate-defining document
+{path to the doc that supplied the gates, or the noted fallback}
+
+### Quality gates audit
+| Clause | Score | Evidence (action + result) | Local-rule qualifier |
+|---|---|---|---|
+| {verbatim clause} | PASS / PARTIAL / FAIL / NEED-EVIDENCE | {e.g. grepped pattern: N hits (Lxx, Lyy)} | {qualifier or none} |
 
 ### Pipeline status
 [PASS / BLOCKED]
@@ -514,6 +567,9 @@ State the coverage verdict and its severity here, in the summary body — covera
 | Verdict | Severity | Required author action | Inline-applicable |
 |---|---|---|---|
 | PASS / FAIL / UNVERIFIABLE | CRITICAL / HIGH / MEDIUM / — | e.g. "attach a one-off changed-line coverage artifact (no permanent tooling required)" | No (summary) / Yes (`file:line`) |
+
+### Findings
+{summary references the inline-anchored findings below}
 
 ### Path to Approval (Action Plan)
 1. [Blocker 1] -> Resolve by [Fix]

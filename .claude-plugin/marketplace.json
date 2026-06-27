@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "laplaque-skills",
   "description": "AI coding assistant skills for PR review and draw.io diagram generation",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "owner": {
     "name": "laplaque"
   },
@@ -12,7 +12,7 @@
       "description": "GitHub/GitLab PR review with inline comments, severity-based verdicts, and language-specific checks",
       "source": "./",
       "strict": false,
-      "version": "0.3.1",
+      "version": "0.3.2",
       "author": {
         "name": "laplaque"
       },
